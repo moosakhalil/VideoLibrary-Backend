@@ -14,7 +14,9 @@ const knowledgeVideoSchema = new Schema(
     sampleType: { type: String, enum: ['none', 'youtube', 'upload'], default: 'none' },
     sampleYoutubeId: { type: String, default: '' },
     sampleVideoUrl: { type: String, default: '' },
-    category: { type: String, required: true, index: true },
+    // A video can belong to one OR many categories.
+    categories: { type: [String], default: [], index: true },
+    category: { type: String, default: '', index: true }, // legacy single-category (kept for old records)
     accessLevel: { type: String, default: 'all' }, // 'all' | 'vip' (VIP catalog gate)
     // Minimum badge level required to see this video (0 = everyone, 1..7 = badge index).
     // Access is cumulative: a Gold (4) customer also sees minBadge 0,1,2,3.
@@ -26,4 +28,25 @@ const knowledgeVideoSchema = new Schema(
 );
 
 const KnowledgeVideo = mongoose.model('KnowledgeVideo', knowledgeVideoSchema);
+
+// Always read a video's categories as an array (falls back to the legacy field).
+export function videoCategories(v) {
+  if (v.categories?.length) return v.categories;
+  return v.category ? [v.category] : [];
+}
+
+// One-time backfill: copy legacy `category` strings into the `categories` array.
+export async function migrateVideoCategories() {
+  const legacy = await KnowledgeVideo.find({
+    $and: [
+      { category: { $exists: true, $ne: '' } },
+      { $or: [{ categories: { $exists: false } }, { categories: { $size: 0 } }] },
+    ],
+  });
+  for (const v of legacy) {
+    v.categories = [v.category];
+    await v.save();
+  }
+}
+
 export default KnowledgeVideo;

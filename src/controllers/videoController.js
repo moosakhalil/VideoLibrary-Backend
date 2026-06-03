@@ -1,13 +1,28 @@
-import KnowledgeVideo from '../models/KnowledgeVideo.js';
+import KnowledgeVideo, { videoCategories } from '../models/KnowledgeVideo.js';
+import Category from '../models/Category.js';
+import { categoryRank } from '../config/categories.js';
 import { computeLevel, computeNextLevel, LEVELS } from '../utils/rewardEngine.js';
 
 const badgeName = (index) => LEVELS.find((l) => l.index === index)?.name || '';
 const tierLabel = (index) => (index === 0 ? 'Everyone' : badgeName(index));
 
-// GET /api/web/videos/categories
+// Names of categories the admin has switched ON. Videos in any other category
+// (or in a toggled-off one) are hidden from customers entirely.
+async function activeCategoryNames() {
+  const active = await Category.find({ isActive: true }).select('name');
+  return new Set(active.map((c) => c.name));
+}
+
+// GET /api/web/videos/categories — only the categories that are active AND
+// actually have at least one video, in canonical order.
 export async function getCategories(req, res) {
-  const categories = await KnowledgeVideo.distinct('category', { isActive: true });
-  res.json({ categories: categories.sort() });
+  const activeNames = await activeCategoryNames();
+  // distinct over the array field returns each used category once.
+  const used = await KnowledgeVideo.distinct('categories', { isActive: true });
+  const categories = used
+    .filter((name) => activeNames.has(name))
+    .sort((a, b) => categoryRank(a) - categoryRank(b));
+  res.json({ categories });
 }
 
 // GET /api/web/videos — the full library, grouped by BADGE LEVEL (tier).
@@ -28,7 +43,10 @@ export async function getLibrary(req, res) {
     ? { name: next.level.name, referralsNeeded: next.referralsNeeded, statusesNeeded: next.statusesNeeded }
     : null;
 
-  const all = await KnowledgeVideo.find({ isActive: true }).sort({ sortOrder: 1, createdAt: 1 });
+  const activeNames = await activeCategoryNames();
+  const all = (await KnowledgeVideo.find({ isActive: true }).sort({ sortOrder: 1, createdAt: 1 }))
+    // Keep a video if at least one of its categories is still toggled on.
+    .filter((v) => videoCategories(v).some((c) => activeNames.has(c)));
 
   // Bucket videos by tier: VIP, or badge level (0..7).
   const tiers = new Map();
@@ -67,7 +85,8 @@ export async function getLibrary(req, res) {
         const out = {
           id: v._id,
           title: v.title,
-          category: v.category,
+          // Only expose the categories that are currently active.
+          categories: videoCategories(v).filter((c) => activeNames.has(c)),
           requiredBadge: t.label,
           locked,
           hasSample,

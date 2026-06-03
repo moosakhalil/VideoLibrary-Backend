@@ -1,6 +1,8 @@
-import KnowledgeVideo from '../models/KnowledgeVideo.js';
+import KnowledgeVideo, { videoCategories } from '../models/KnowledgeVideo.js';
 import WhatsAppStatusSubmission from '../models/WhatsAppStatusSubmission.js';
 import Customer from '../models/Customer.js';
+import Category, { ensureCategories } from '../models/Category.js';
+import { CATEGORIES } from '../config/categories.js';
 import { signAdminToken } from '../utils/jwt.js';
 import { evaluateCustomer } from '../utils/rewardEngine.js';
 
@@ -33,6 +35,21 @@ export async function listVideos(req, res) {
   res.json({ videos });
 }
 
+// Normalise an incoming categories payload (JSON string, array, or single
+// string) into a clean array limited to the canonical category list.
+function parseCategories(body) {
+  let raw = body.categories;
+  if (typeof raw === 'string') {
+    try { raw = JSON.parse(raw); } catch { raw = [raw]; }
+  }
+  if (!Array.isArray(raw)) raw = raw ? [raw] : [];
+  // de-dupe, trim, and keep only valid canonical categories
+  const seen = new Set();
+  return raw
+    .map((c) => String(c).trim())
+    .filter((c) => CATEGORIES.includes(c) && !seen.has(c) && seen.add(c));
+}
+
 // Resolve the optional sample into { sampleType, sampleYoutubeId, sampleVideoUrl }.
 function resolveSample(body, files) {
   const sampleFile = files?.sampleVideo?.[0];
@@ -48,16 +65,18 @@ function resolveSample(body, files) {
 // POST /api/web/admin/videos
 // Multipart: optional "video" (full) and "sampleVideo" (teaser) files.
 export async function createVideo(req, res) {
-  const { title, youtubeId, category, accessLevel, minBadge, sortOrder, isActive } = req.body;
-  if (!title || !category) {
-    return res.status(400).json({ error: 'title and category are required' });
+  const { title, youtubeId, accessLevel, minBadge, sortOrder, isActive } = req.body;
+  const categories = parseCategories(req.body);
+  if (!title || categories.length === 0) {
+    return res.status(400).json({ error: 'title and at least one category are required' });
   }
 
   const mainFile = req.files?.video?.[0];
 
   const base = {
     title: title.trim(),
-    category: category.trim(),
+    categories,
+    category: categories[0], // keep legacy field populated
     accessLevel: accessLevel || 'all',
     minBadge: Number(minBadge) || 0,
     sortOrder: Number(sortOrder) || 0,
@@ -89,11 +108,18 @@ export async function createVideo(req, res) {
 
 // PATCH /api/web/admin/videos/:id
 export async function updateVideo(req, res) {
-  const { title, youtubeId, category, accessLevel, minBadge, sortOrder, isActive } = req.body;
+  const { title, youtubeId, accessLevel, minBadge, sortOrder, isActive } = req.body;
   const update = {};
   if (title !== undefined) update.title = title.trim();
   if (youtubeId !== undefined) update.youtubeId = extractYoutubeId(youtubeId);
-  if (category !== undefined) update.category = category.trim();
+  if (req.body.categories !== undefined) {
+    const categories = parseCategories(req.body);
+    if (categories.length === 0) {
+      return res.status(400).json({ error: 'Select at least one category.' });
+    }
+    update.categories = categories;
+    update.category = categories[0]; // keep legacy field in sync
+  }
   if (accessLevel !== undefined) update.accessLevel = accessLevel;
   if (minBadge !== undefined) update.minBadge = Number(minBadge) || 0;
   if (sortOrder !== undefined) update.sortOrder = Number(sortOrder) || 0;
@@ -122,6 +148,42 @@ export async function deleteVideo(req, res) {
   const video = await KnowledgeVideo.findByIdAndDelete(req.params.id);
   if (!video) return res.status(404).json({ error: 'Video not found' });
   res.json({ ok: true });
+}
+
+// ---------- Categories ----------
+// GET /api/web/admin/categories — every canonical category with its on/off state
+// and how many videos sit under it.
+export async function listCategories(req, res) {
+  await ensureCategories();
+  const rows = await Category.find();
+  // A video can be in several categories, so unwind the array before counting.
+  const counts = await KnowledgeVideo.aggregate([
+    { $project: { cats: { $cond: [{ $gt: [{ $size: { $ifNull: ['$categories', []] } }, 0] }, '$categories', ['$category']] } } },
+    { $unwind: '$cats' },
+    { $group: { _id: '$cats', count: { $sum: 1 } } },
+  ]);
+  const countByName = Object.fromEntries(counts.map((c) => [c._id, c.count]));
+  const byName = Object.fromEntries(rows.map((r) => [r.name, r]));
+
+  const categories = CATEGORIES.map((name) => ({
+    id: byName[name]?._id || null,
+    name,
+    isActive: byName[name] ? byName[name].isActive : true,
+    videoCount: countByName[name] || 0,
+  }));
+  res.json({ categories });
+}
+
+// PATCH /api/web/admin/categories/:id  { isActive }
+export async function updateCategory(req, res) {
+  const { isActive } = req.body;
+  const category = await Category.findByIdAndUpdate(
+    req.params.id,
+    { isActive: !!isActive },
+    { new: true }
+  );
+  if (!category) return res.status(404).json({ error: 'Category not found' });
+  res.json({ category });
 }
 
 // ---------- Status moderation ----------

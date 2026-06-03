@@ -6,6 +6,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 import { connectDB } from './src/config/db.js';
+import { ensureCategories } from './src/models/Category.js';
+import { migrateVideoCategories } from './src/models/KnowledgeVideo.js';
 import authRoutes from './src/routes/auth.js';
 import meRoutes from './src/routes/me.js';
 import videoRoutes from './src/routes/videos.js';
@@ -49,7 +51,9 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 
 connectDB()
-  .then(() => {
+  .then(async () => {
+    await ensureCategories();
+    await migrateVideoCategories();
     app.listen(PORT, () => console.log(`🚀 API listening on http://localhost:${PORT}`));
   })
   .catch((err) => {

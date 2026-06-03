@@ -8,6 +8,8 @@ import {
   createVideo,
   updateVideo,
   deleteVideo,
+  listCategories,
+  updateCategory,
   listSubmissions,
   moderateSubmission,
   listCustomers,
@@ -40,6 +42,10 @@ router.post('/videos', (req, res) => {
 });
 router.patch('/videos/:id', updateVideo);
 router.delete('/videos/:id', deleteVideo);
+
+// Categories
+router.get('/categories', listCategories);
+router.patch('/categories/:id', updateCategory);
 
 // Status moderation
 router.get('/status', listSubmissions);
