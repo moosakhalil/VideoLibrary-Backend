@@ -10,6 +10,8 @@ import {
   deleteVideo,
   listCategories,
   updateCategory,
+  listStatusVideos,
+  saveStatusVideos,
   listSubmissions,
   moderateSubmission,
   listCustomers,
@@ -46,6 +48,10 @@ router.delete('/videos/:id', deleteVideo);
 // Categories
 router.get('/categories', listCategories);
 router.patch('/categories/:id', updateCategory);
+
+// Status videos (YouTube link per WhatsApp status 1..60)
+router.get('/status-videos', listStatusVideos);
+router.put('/status-videos', saveStatusVideos);
 
 // Status moderation
 router.get('/status', listSubmissions);

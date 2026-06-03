@@ -5,12 +5,12 @@ import PersonalDiscount from '../models/PersonalDiscount.js';
 // index is 1-based; index 0 means "no badge yet".
 export const LEVELS = [
   { index: 1, name: 'First Referral Knowledge', referrals: 1, statuses: 1, discount: 0, vip: false, reward: 'Recognition only' },
-  { index: 2, name: 'Bronze Knowledge', referrals: 5, statuses: 3, discount: 1, vip: false, reward: '1% off on next buy' },
-  { index: 3, name: 'Silver Knowledge', referrals: 10, statuses: 5, discount: 1, vip: false, reward: '1% off on next buy' },
-  { index: 4, name: 'Gold Knowledge', referrals: 15, statuses: 10, discount: 1, vip: false, reward: '1% off on next buy' },
-  { index: 5, name: 'Platinum Knowledge', referrals: 25, statuses: 12, discount: 1, vip: false, reward: '1% off on next buy' },
-  { index: 6, name: 'Knowledge Master', referrals: 40, statuses: 14, discount: 1, vip: true, reward: '1% off on next buy + VIP batch catalog (2 days)' },
-  { index: 7, name: 'Knowledge Ambassador', referrals: 40, statuses: 16, discount: 1, vip: true, reward: '1% off on next buy + VIP batch catalog (2 days)' },
+  { index: 2, name: 'Bronze Knowledge', referrals: 5, statuses: 5, discount: 1, vip: false, reward: '1% off on next buy' },
+  { index: 3, name: 'Silver Knowledge', referrals: 10, statuses: 20, discount: 1, vip: false, reward: '1% off on next buy' },
+  { index: 4, name: 'Gold Knowledge', referrals: 15, statuses: 30, discount: 1, vip: false, reward: '1% off on next buy' },
+  { index: 5, name: 'Platinum Knowledge', referrals: 25, statuses: 40, discount: 1, vip: false, reward: '1% off on next buy' },
+  { index: 6, name: 'Knowledge Master', referrals: 40, statuses: 50, discount: 1, vip: true, reward: '1% off on next buy + VIP batch catalog (2 days)' },
+  { index: 7, name: 'Knowledge Ambassador', referrals: 40, statuses: 60, discount: 1, vip: true, reward: '1% off on next buy + VIP batch catalog (2 days)' },
 ];
 
 export const VIP_ACCESS_DAYS = 2;

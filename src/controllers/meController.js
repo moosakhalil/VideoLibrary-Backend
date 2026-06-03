@@ -55,7 +55,7 @@ export async function getProgress(req, res) {
   let message = 'You have reached the top level — amazing work! 🎉';
   if (next) {
     const parts = [];
-    if (next.referralsNeeded > 0) parts.push(`${next.referralsNeeded} more referral(s)`);
+    if (next.referralsNeeded > 0) parts.push(`${next.referralsNeeded} more warm lead(s)`);
     if (next.statusesNeeded > 0) parts.push(`${next.statusesNeeded} more status(es)`);
     message = `Get ${parts.join(' AND ')} to reach ${next.level.name}.`;
   }

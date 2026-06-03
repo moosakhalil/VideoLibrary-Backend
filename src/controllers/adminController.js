@@ -2,6 +2,7 @@ import KnowledgeVideo, { videoCategories } from '../models/KnowledgeVideo.js';
 import WhatsAppStatusSubmission from '../models/WhatsAppStatusSubmission.js';
 import Customer from '../models/Customer.js';
 import Category, { ensureCategories } from '../models/Category.js';
+import StatusVideo from '../models/StatusVideo.js';
 import { CATEGORIES } from '../config/categories.js';
 import { signAdminToken } from '../utils/jwt.js';
 import { evaluateCustomer } from '../utils/rewardEngine.js';
@@ -184,6 +185,37 @@ export async function updateCategory(req, res) {
   );
   if (!category) return res.status(404).json({ error: 'Category not found' });
   res.json({ category });
+}
+
+// ---------- Status videos (one YouTube link per WhatsApp status 1..60) ----------
+// GET /api/web/admin/status-videos — always returns all 60 rows (blank if unset).
+export async function listStatusVideos(req, res) {
+  const rows = await StatusVideo.find();
+  const byNum = Object.fromEntries(rows.map((r) => [r.statusNumber, r.youtubeLink]));
+  const items = Array.from({ length: 60 }, (_, i) => ({
+    statusNumber: i + 1,
+    youtubeLink: byNum[i + 1] || '',
+  }));
+  res.json({ items });
+}
+
+// PUT /api/web/admin/status-videos  { items: [{ statusNumber, youtubeLink }] }
+export async function saveStatusVideos(req, res) {
+  const items = Array.isArray(req.body.items) ? req.body.items : [];
+  const ops = [];
+  for (const it of items) {
+    const n = Number(it.statusNumber);
+    if (!Number.isInteger(n) || n < 1 || n > 60) continue;
+    ops.push(
+      StatusVideo.updateOne(
+        { statusNumber: n },
+        { $set: { youtubeLink: String(it.youtubeLink || '').trim() } },
+        { upsert: true }
+      )
+    );
+  }
+  await Promise.all(ops);
+  res.json({ ok: true });
 }
 
 // ---------- Status moderation ----------
