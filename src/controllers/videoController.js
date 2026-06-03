@@ -1,5 +1,6 @@
 import KnowledgeVideo, { videoCategories } from '../models/KnowledgeVideo.js';
 import Category from '../models/Category.js';
+import DatedVideo from '../models/DatedVideo.js';
 import { categoryRank } from '../config/categories.js';
 import { computeLevel, computeNextLevel, LEVELS } from '../utils/rewardEngine.js';
 
@@ -11,6 +12,38 @@ const tierLabel = (index) => (index === 0 ? 'Everyone' : badgeName(index));
 async function activeCategoryNames() {
   const active = await Category.find({ isActive: true }).select('name');
   return new Set(active.map((c) => c.name));
+}
+
+// YYYY-MM-DD for "today" in Asia/Karachi (GMT+5, no DST) — independent of the
+// server's own timezone. en-CA formats as YYYY-MM-DD.
+function todayYmd() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Karachi',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+const featuredView = (v) =>
+  v
+    ? {
+        title: v.title,
+        videoType: v.videoType,
+        youtubeId: v.youtubeId,
+        videoUrl: v.videoUrl,
+        date: v.date,
+      }
+    : null;
+
+// GET /api/web/videos/featured — promotional + today's video for the current date.
+export async function getFeatured(req, res) {
+  const date = todayYmd();
+  const [promotional, today] = await Promise.all([
+    DatedVideo.findOne({ kind: 'promotional', date }),
+    DatedVideo.findOne({ kind: 'today', date }),
+  ]);
+  res.json({ date, promotional: featuredView(promotional), today: featuredView(today) });
 }
 
 // GET /api/web/videos/categories — only the categories that are active AND

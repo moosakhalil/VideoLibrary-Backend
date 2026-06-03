@@ -3,6 +3,7 @@ import WhatsAppStatusSubmission from '../models/WhatsAppStatusSubmission.js';
 import Customer from '../models/Customer.js';
 import Category, { ensureCategories } from '../models/Category.js';
 import StatusVideo from '../models/StatusVideo.js';
+import DatedVideo from '../models/DatedVideo.js';
 import { CATEGORIES } from '../config/categories.js';
 import { signAdminToken } from '../utils/jwt.js';
 import { evaluateCustomer } from '../utils/rewardEngine.js';
@@ -215,6 +216,75 @@ export async function saveStatusVideos(req, res) {
     );
   }
   await Promise.all(ops);
+  res.json({ ok: true });
+}
+
+// ---------- Dated feature videos (promotional / today) ----------
+const isKind = (k) => k === 'promotional' || k === 'today';
+const isYmd = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d || '');
+// Today in Asia/Karachi (GMT+5) as YYYY-MM-DD, for past-date validation.
+const karachiTodayYmd = () =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Karachi',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+
+// GET /api/web/admin/dated-videos?kind=promotional
+export async function listDatedVideos(req, res) {
+  const { kind } = req.query;
+  if (!isKind(kind)) return res.status(400).json({ error: 'kind must be promotional or today' });
+  const rows = await DatedVideo.find({ kind }).sort({ date: 1 });
+  res.json({
+    items: rows.map((v) => ({
+      id: v._id,
+      date: v.date,
+      videoType: v.videoType,
+      youtubeId: v.youtubeId,
+      videoUrl: v.videoUrl,
+      title: v.title,
+    })),
+  });
+}
+
+// POST /api/web/admin/dated-videos  (multipart) { kind, date, title, youtubeId? } + optional file "video"
+// Upserts the single video for that kind+date.
+export async function saveDatedVideo(req, res) {
+  const { kind, date, title, youtubeId } = req.body;
+  if (!isKind(kind)) return res.status(400).json({ error: 'kind must be promotional or today' });
+  if (!isYmd(date)) return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
+  if (date < karachiTodayYmd()) {
+    return res.status(400).json({ error: 'Cannot set a video for a past date.' });
+  }
+
+  const file = req.file;
+  const update = { kind, date, title: (title || '').trim() };
+
+  if (file) {
+    update.videoType = 'upload';
+    update.videoUrl = `/uploads/videos/${file.filename}`;
+    update.youtubeId = '';
+  } else if (youtubeId) {
+    update.videoType = 'youtube';
+    update.youtubeId = extractYoutubeId(youtubeId);
+    update.videoUrl = '';
+  } else {
+    return res.status(400).json({ error: 'Provide a YouTube link/ID or upload a video file.' });
+  }
+
+  const video = await DatedVideo.findOneAndUpdate({ kind, date }, update, {
+    new: true,
+    upsert: true,
+    setDefaultsOnInsert: true,
+  });
+  res.status(201).json({ video });
+}
+
+// DELETE /api/web/admin/dated-videos/:id
+export async function deleteDatedVideo(req, res) {
+  const video = await DatedVideo.findByIdAndDelete(req.params.id);
+  if (!video) return res.status(404).json({ error: 'Video not found' });
   res.json({ ok: true });
 }
 

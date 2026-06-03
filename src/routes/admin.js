@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { requireAdmin } from '../middleware/adminAuth.js';
-import { uploadVideoFiles } from '../middleware/uploadVideo.js';
+import { uploadVideoFiles, uploadVideoFile } from '../middleware/uploadVideo.js';
 import {
   adminLogin,
   listVideos,
@@ -12,6 +12,9 @@ import {
   updateCategory,
   listStatusVideos,
   saveStatusVideos,
+  listDatedVideos,
+  saveDatedVideo,
+  deleteDatedVideo,
   listSubmissions,
   moderateSubmission,
   listCustomers,
@@ -52,6 +55,16 @@ router.patch('/categories/:id', updateCategory);
 // Status videos (YouTube link per WhatsApp status 1..60)
 router.get('/status-videos', listStatusVideos);
 router.put('/status-videos', saveStatusVideos);
+
+// Dated feature videos (promotional / today)
+router.get('/dated-videos', listDatedVideos);
+router.post('/dated-videos', (req, res) => {
+  uploadVideoFile(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    return saveDatedVideo(req, res);
+  });
+});
+router.delete('/dated-videos/:id', deleteDatedVideo);
 
 // Status moderation
 router.get('/status', listSubmissions);
