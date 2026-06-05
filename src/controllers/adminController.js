@@ -7,6 +7,7 @@ import DatedVideo from '../models/DatedVideo.js';
 import { CATEGORIES } from '../config/categories.js';
 import { signAdminToken } from '../utils/jwt.js';
 import { evaluateCustomer } from '../utils/rewardEngine.js';
+import { extractYoutubeId } from '../utils/youtube.js';
 
 // ---------- Auth ----------
 // POST /api/web/admin/login  { username, password }
@@ -19,15 +20,6 @@ export function adminLogin(req, res) {
   }
   const token = signAdminToken();
   res.json({ token });
-}
-
-// Pull the 11-char ID out of any YouTube URL, or accept a bare ID.
-function extractYoutubeId(input = '') {
-  const s = String(input).trim();
-  const m = s.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([A-Za-z0-9_-]{11})/);
-  if (m) return m[1];
-  if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
-  return s; // fall back to whatever was given
 }
 
 // ---------- Videos CRUD ----------
@@ -217,6 +209,27 @@ export async function saveStatusVideos(req, res) {
   }
   await Promise.all(ops);
   res.json({ ok: true });
+}
+
+// PUT /api/web/admin/status-videos/:n  { youtubeLink } — save/edit one status.
+export async function saveStatusVideo(req, res) {
+  const n = Number(req.params.n);
+  if (!Number.isInteger(n) || n < 1 || n > 60) {
+    return res.status(400).json({ error: 'statusNumber must be 1..60' });
+  }
+  const youtubeLink = String(req.body.youtubeLink || '').trim();
+  await StatusVideo.updateOne({ statusNumber: n }, { $set: { youtubeLink } }, { upsert: true });
+  res.json({ ok: true, statusNumber: n, youtubeLink });
+}
+
+// DELETE /api/web/admin/status-videos/:n — remove the video for one status.
+export async function deleteStatusVideo(req, res) {
+  const n = Number(req.params.n);
+  if (!Number.isInteger(n) || n < 1 || n > 60) {
+    return res.status(400).json({ error: 'statusNumber must be 1..60' });
+  }
+  await StatusVideo.deleteOne({ statusNumber: n });
+  res.json({ ok: true, statusNumber: n });
 }
 
 // ---------- Dated feature videos (promotional / today) ----------

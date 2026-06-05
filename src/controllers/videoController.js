@@ -46,6 +46,18 @@ export async function getFeatured(req, res) {
   res.json({ date, promotional: featuredView(promotional), today: featuredView(today) });
 }
 
+// GET /api/web/videos/promotional — promotional videos for today + past days,
+// most recent first, so customers can browse previous days' promos via a date
+// filter. Future-dated promos are excluded.
+export async function getPromotional(req, res) {
+  const today = todayYmd();
+  const rows = await DatedVideo.find({
+    kind: 'promotional',
+    date: { $lte: today },
+  }).sort({ date: -1 });
+  res.json({ today, items: rows.map(featuredView) });
+}
+
 // GET /api/web/videos/categories — only the categories that are active AND
 // actually have at least one video, in canonical order.
 export async function getCategories(req, res) {

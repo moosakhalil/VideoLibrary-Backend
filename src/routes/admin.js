@@ -12,6 +12,8 @@ import {
   updateCategory,
   listStatusVideos,
   saveStatusVideos,
+  saveStatusVideo,
+  deleteStatusVideo,
   listDatedVideos,
   saveDatedVideo,
   deleteDatedVideo,
@@ -54,7 +56,9 @@ router.patch('/categories/:id', updateCategory);
 
 // Status videos (YouTube link per WhatsApp status 1..60)
 router.get('/status-videos', listStatusVideos);
-router.put('/status-videos', saveStatusVideos);
+router.put('/status-videos', saveStatusVideos); // bulk
+router.put('/status-videos/:n', saveStatusVideo); // save/edit one
+router.delete('/status-videos/:n', deleteStatusVideo); // delete one
 
 // Dated feature videos (promotional / today)
 router.get('/dated-videos', listDatedVideos);
