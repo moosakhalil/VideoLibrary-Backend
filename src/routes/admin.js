@@ -17,10 +17,6 @@ import {
   listDatedVideos,
   saveDatedVideo,
   deleteDatedVideo,
-  listSubmissions,
-  moderateSubmission,
-  listCustomers,
-  addReferral,
   resetCustomerPin,
 } from '../controllers/adminController.js';
 
@@ -70,13 +66,7 @@ router.post('/dated-videos', (req, res) => {
 });
 router.delete('/dated-videos/:id', deleteDatedVideo);
 
-// Status moderation
-router.get('/status', listSubmissions);
-router.patch('/status/:id', moderateSubmission);
-
-// Customers + referrals
-router.get('/customers', listCustomers);
-router.post('/customers/:id/referrals', addReferral);
+// Customer PIN reset (login support only — referrals/status live in construction)
 router.post('/customers/:id/reset-pin', resetCustomerPin);
 
 export default router;

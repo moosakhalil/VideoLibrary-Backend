@@ -1,20 +1,12 @@
 import PersonalDiscount from '../models/PersonalDiscount.js';
-import {
-  LEVELS,
-  computeLevel,
-  computeNextLevel,
-  computeKeepAlive,
-  evaluateCustomer,
-} from '../utils/rewardEngine.js';
+import { LEVELS } from '../utils/rewardEngine.js';
+import { getDerivedProgress } from '../services/progressService.js';
 
 // A safe, PIN-free view of the customer for the front-end.
+// Referral/status counts, badge and VIP now come from Construction (recomputed
+// locally from the two counts); identity fields stay local.
 export async function buildCustomerView(customer) {
-  await evaluateCustomer(customer); // keep results fresh on every load
-
-  const referralCount = customer.referralCount();
-  const verifiedStatusCount = customer.verifiedStatusCount();
-  const level = computeLevel(referralCount, verifiedStatusCount);
-  const keepAlive = computeKeepAlive(customer);
+  const p = await getDerivedProgress(customer);
 
   return {
     id: customer._id,
@@ -22,17 +14,18 @@ export async function buildCustomerView(customer) {
     phone: customer.phoneNumber?.[0] || '',
     language: customer.language,
     referralCode: customer.referralCode,
+    found: p.found, // false => not in the construction rewards system yet
     badge: {
-      index: level ? level.index : 0,
-      name: level ? level.name : 'No badge yet',
-      reward: level ? level.reward : '',
-      isInactive: keepAlive.isInactive,
+      index: p.badgeIndex,
+      name: p.level ? p.level.name : 'No badge yet',
+      reward: p.level ? p.level.reward : '',
+      isInactive: false, // keep-alive lives in construction now
     },
-    referralCount,
-    verifiedStatusCount,
+    referralCount: p.referralCount,
+    verifiedStatusCount: p.verifiedStatusCount,
     vipCatalogAccess: {
-      isActive: customer.vipCatalogAccess?.isActive || false,
-      expiresAt: customer.vipCatalogAccess?.expiresAt || null,
+      isActive: p.vipActive,
+      expiresAt: null, // construction owns VIP timing; only isActive is surfaced
     },
   };
 }
@@ -42,15 +35,10 @@ export async function getMe(req, res) {
   res.json({ customer: await buildCustomerView(req.customer) });
 }
 
-// GET /api/web/me/progress — the AND-gate math
+// GET /api/web/me/progress — the AND-gate math, fed by construction counts.
 export async function getProgress(req, res) {
-  const c = req.customer;
-  const referralCount = c.referralCount();
-  const verifiedStatusCount = c.verifiedStatusCount();
-
-  const current = computeLevel(referralCount, verifiedStatusCount);
-  const next = computeNextLevel(referralCount, verifiedStatusCount);
-  const keepAlive = computeKeepAlive(c);
+  const p = await getDerivedProgress(req.customer);
+  const { found, referralCount, verifiedStatusCount, level: current, next } = p;
 
   let message = 'You have reached the top level — amazing work! 🎉';
   if (next) {
@@ -61,6 +49,7 @@ export async function getProgress(req, res) {
   }
 
   res.json({
+    found,
     current: current
       ? { index: current.index, name: current.name, reward: current.reward }
       : { index: 0, name: 'No badge yet', reward: '' },
@@ -80,14 +69,15 @@ export async function getProgress(req, res) {
         }
       : null,
     message,
-    keepAlive,
+    keepAlive: null, // activity recency is tracked in construction, not here
     levels: LEVELS,
   });
 }
 
-// GET /api/web/me/rewards
+// GET /api/web/me/rewards — VIP from construction; discounts from the local ledger.
 export async function getRewards(req, res) {
   const c = req.customer;
+  const p = await getDerivedProgress(c);
   const discounts = await PersonalDiscount.find({ customerId: c._id }).sort({ createdAt: -1 });
 
   const view = discounts.map((d) => ({
@@ -103,8 +93,8 @@ export async function getRewards(req, res) {
   res.json({
     discounts: view,
     vipCatalog: {
-      isActive: c.vipCatalogAccess?.isActive || false,
-      expiresAt: c.vipCatalogAccess?.expiresAt || null,
+      isActive: p.vipActive,
+      expiresAt: null,
     },
   });
 }

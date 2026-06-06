@@ -1,3 +1,5 @@
+import { getDerivedProgress } from '../services/progressService.js';
+
 // GET /api/web/me/referral — code + share link + share text
 export async function getReferral(req, res) {
   const c = req.customer;
@@ -15,23 +17,15 @@ export async function getReferral(req, res) {
   });
 }
 
-// GET /api/web/me/referrals — list of referred people + states + counts
+// GET /api/web/me/referrals — warm-lead count (from construction). The per-person
+// list lives in construction and isn't exposed through the progress API, so the
+// website shows the summary count only.
 export async function getReferrals(req, res) {
-  const c = req.customer;
-  const people = (c.customersReferred || []).map((p) => ({
-    id: p._id,
-    name: p.name || 'Friend',
-    phoneNumber: p.phoneNumber,
-    repliedWithHi: p.repliedWithHi,
-    becameCustomer: p.becameCustomer,
-    referredAt: p.referredAt,
-    state: p.becameCustomer ? 'became-customer' : p.repliedWithHi ? 'said-hi' : 'invited',
-  }));
-
+  const { referralCount } = await getDerivedProgress(req.customer);
   res.json({
-    total: people.length,
-    qualified: people.filter((p) => p.repliedWithHi).length, // counts toward levels
-    becameCustomers: people.filter((p) => p.becameCustomer).length,
-    people,
+    total: referralCount,
+    qualified: referralCount, // all counted warm leads qualify toward levels
+    becameCustomers: 0, // not surfaced by the construction progress API
+    people: [],
   });
 }

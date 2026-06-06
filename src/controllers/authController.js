@@ -1,7 +1,6 @@
 import bcrypt from 'bcryptjs';
 import Customer from '../models/Customer.js';
 import { signToken } from '../utils/jwt.js';
-import { evaluateCustomer } from '../utils/rewardEngine.js';
 import { buildCustomerView } from './meController.js';
 
 const PIN_MIN = Number(process.env.PIN_MIN_LENGTH || 4);
@@ -85,8 +84,6 @@ export async function register(req, res) {
   customer.pinLockedUntil = null;
   if (!customer.referralCode) customer.referralCode = genReferralCode();
   await customer.save();
-
-  await evaluateCustomer(customer);
 
   const token = signToken(customer._id.toString());
   setAuthCookie(res, token);

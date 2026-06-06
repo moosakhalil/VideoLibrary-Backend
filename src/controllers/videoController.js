@@ -2,7 +2,8 @@ import KnowledgeVideo, { videoCategories } from '../models/KnowledgeVideo.js';
 import Category from '../models/Category.js';
 import DatedVideo from '../models/DatedVideo.js';
 import { categoryRank } from '../config/categories.js';
-import { computeLevel, computeNextLevel, LEVELS } from '../utils/rewardEngine.js';
+import { LEVELS } from '../utils/rewardEngine.js';
+import { getDerivedProgress } from '../services/progressService.js';
 
 const badgeName = (index) => LEVELS.find((l) => l.index === index)?.name || '';
 const tierLabel = (index) => (index === 0 ? 'Everyone' : badgeName(index));
@@ -77,13 +78,10 @@ export async function getCategories(req, res) {
 export async function getLibrary(req, res) {
   const c = req.customer;
 
-  const referralCount = c.referralCount();
-  const verifiedStatusCount = c.verifiedStatusCount();
-  const level = computeLevel(referralCount, verifiedStatusCount);
-  const badgeIndex = level ? level.index : 0;
-  const vipActive = c.vipCatalogAccess?.isActive || false;
+  // Counts + badge + VIP come from construction (recomputed locally into a level).
+  const { referralCount, verifiedStatusCount, badgeIndex, vipActive, next } =
+    await getDerivedProgress(c);
 
-  const next = computeNextLevel(referralCount, verifiedStatusCount);
   const nextLevel = next
     ? { name: next.level.name, referralsNeeded: next.referralsNeeded, statusesNeeded: next.statusesNeeded }
     : null;
